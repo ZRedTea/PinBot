@@ -2,27 +2,34 @@ from datetime import datetime, timedelta
 from typing import List, Dict, Any
 from enum import Enum
 
-class PlayerStatus(Enum):
+time_format = "%Y-%m-%d %H:%M:%S"
+
+class UserStatus(Enum):
     """玩家状态枚举"""
     OFFLINE = 0
     PLAYING = 1
     WAITING = 2
 
-time_format = "%Y-%m-%d %H:%M:%S"
-class Player:
+class UserCostType(Enum):
+    """玩家花费类型枚举"""
+    NORMAL = 0
+    OTHERS = 1
+
+class User:
     """玩家类，用于实现对每个玩家的各种操作"""
     def __init__(self, nickname, userid):
-        self.__userid = userid       #用户编号 => QQ号
-        self.__nickname = nickname   #用户名
-        self.__allTime = [0,0,0]     #用户总时长 Day Hrs Min
-        self.__balance = 0           #用户剩余金钱
-        self.__startTime = 0         #用户出勤开始时间
-        self.__status = False        #用户是否出勤
-        self.__type = 1              #用户出勤类型
-        self.__playing = []          #用户当前游玩机台
-        self.__cost = [0]            #用户当日消费
-
-        self.__banned = False        #用户是否被封禁
+        self._userid = userid                             #用户编号 => QQ号
+        self._nickname = nickname                         #用户名
+        self._total_play_time = timedelta()               #用户总游玩时长
+        self._start_time = 0                              #用户出勤开始时间
+        self._balance = 0                                 #用户剩余金钱
+        self._status = UserStatus.OFFLINE                 #用户目前状态
+        self._current_machines = []                       #用户当前游玩的机台
+        self._daily_costs: Dict[UserCostType, int] = {    #用户当日游玩花费
+            UserCostType.NORMAL: 0,
+            UserCostType.OTHERS: 0
+        }
+        self._is_banned = False                           #用户是否被封禁
 
     def balanceRechar(self, money):
         self.__balance += money
@@ -81,7 +88,7 @@ class Player:
 
     ###get函数###
     def getDay(self):
-        return self.__allTime[0]`
+        return self.__allTime[0]
     def getHour(self):
         return self.__allTime[1]
     def getMin(self):
@@ -130,7 +137,7 @@ def serialize_player(player):
 
 def deserialize_player(data):
     """用于读取数据时反规格化玩家对象"""
-    player = Player(data["nickname"], data["userid"])
+    player = User(data["nickname"], data["userid"])
     player.allTimeAdd(data["allTime"])
     player.balanceSet(data["balance"])
     player.costAllSet(data["cost"])

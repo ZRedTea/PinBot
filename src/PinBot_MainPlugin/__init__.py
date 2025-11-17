@@ -1,5 +1,5 @@
 from .config import Config
-from .model import Player, PlayerStatus, serialize_player, deserialize_player
+from .model import User, PlayerStatus, serialize_player, deserialize_player
 from .model import Machine, serialize_machine, deserialize_machine, search_machine
 
 from nonebot import get_plugin_config, logger, require, get_bot
@@ -81,17 +81,13 @@ def compute_real_cost(need_cost, had_cost, max_cost):
     else:
         return need_cost
 
-def compute_cost_and_time(player : Player, current_time : datetime, target_status : str):
+def compute_cost_and_time(player : User, current_time : datetime):
     """
     统一的计时计费函数
 
     Args:
         player: 玩家对象
         current_time: 当前时间
-        target_status: 目标类型
-            "offline" - 退勤状态
-            "waiting" - 入场状态
-            "playing" - 出勤状态
 
     Returns:
         dict: 包含时长，费用等信息
@@ -129,21 +125,21 @@ def compute_cost_and_time(player : Player, current_time : datetime, target_statu
         "rate": cost_param[now_status],   # 费率
     }
 
-def sortPlayers() -> Dict[int, Player]:
+def sort_users_by_playing_time() -> Dict[int, User]:
     """
     按用户游戏时长降序排列用户
 
     Returns:
         dict: 排名索引 -> 用户对象的字典
     """
-    sorted_items = sorted(
-        users,
-        key=lambda item: item[1].getMins(),
+    sorted_users = sorted(
+        users.values(),
+        key=lambda user: user.getMins(),
         reverse=True
     )
 
     # 转换为排名字典
-    sorted_users = {rank+1: user for rank, user in enumerate(sorted_items)}
+    sorted_users = {rank+1: user for rank, user in enumerate(sorted_users)}
 
     return sorted_users
 
@@ -215,7 +211,7 @@ admin_machine_off= on_command("关闭机台", rule=to_me())
 ###功能性命令###
 auto_welcome     = on_notice()
 
-users = {}      #用户列表
+users = {}      #用户字典 Dict[user_id, user]
 machines = []   #机台列表
 
 ################################################
@@ -230,22 +226,10 @@ async def autosave():
     logger.info(f"【拼Bot核心插件】自动化 | 触发->每日清场[daily_clear]")
     logger.info(f"【拼Bot核心插件】自动化 | daily_clear > 开始自动退勤所有人")
     for user in users.values():
-        if user.getStatus():
-            time = datetime.now()
-            user.offline()
-            duration = get_time(time, user.getStartTime())
-            user.allTimeAdd(duration)
-            if (duration % 60 > 10):
-                duration = duration // 60 + 1
-            else:
-                duration = duration // 60
+        if user.is_online():
+            result = compute_cost_and_time(user, datetime.now())
 
-            if user.getType() == 1:
-                needReduce = duration * COSTPERTIME[1]
-                user.balanceReduce(compute_real_cost(needReduce, user.getCost()[0], 36))
-            else:
-                needReduce = duration * COSTPERTIME[2]
-                user.balanceReduce(compute_real_cost(needReduce, user.getCost()[0], 24))
+            user.allTimeAdd =
             logger.info(f"【拼Bot核心插件】自动化 | daily_clear > 已退勤 {user.getNickname()}")
         user.costClear()
 
@@ -370,7 +354,7 @@ async def _(bot: Bot, event: Event, args: Message = CommandArg()):
 @user_ranklist.handle()
 async def _(bot: Bot, event: Event):
     logger.info("【拼Bot核心插件】指令器 | 触发->用户排行 [user_ranklist]")
-    sorted_users = sortPlayers()
+    sorted_users = sort_users_by_playing_time()
     count = 0
     message = ""
     for id in sorted_users:
@@ -390,8 +374,8 @@ async def _(bot: Bot, event: Event, args: Message = CommandArg()):
     if nickname := args.extract_plain_text():
         pass
     else:
-        nickname = f"{PLACENAME}用户{len(users)+1}"
-    users[user_id] = Player(nickname, user_id)
+        nickname = f"{PLACENAME}用户{len(users) + 1}"
+    users[user_id] = User(nickname, user_id)
     logger.debug(users)
     logger.info(f"【拼Bot核心插件】指令器 | user_register > 用户{user_id} 创建账号完毕")
     await user_register.finish(f"创建账号成功，玩家 {user_id} 的昵称为 {users[user_id].getNickname()}")
@@ -646,7 +630,7 @@ async def _(bot: Bot, event: Event):
 
     if thisUser.getStatus():
         thisUser.offline()
-        duration = get_time(time,users[user_id].getStartTime())
+        duration = get_time(time, users[user_id].getStartTime())
         thisUser.allTimeAdd(duration)
         if(duration % 60 > 10):
             duration = duration // 60 + 1
@@ -892,7 +876,7 @@ async def _(bot: Bot, event: Event, args: Message = CommandArg()):
     time = datetime.now()
     if thisUser.getStatus():
         thisUser.offline()
-        duration = get_time(time,users[user_id].getStartTime())
+        duration = get_time(time, users[user_id].getStartTime())
         thisUser.allTimeAdd(duration)
         if(duration % 60 > 10):
             duration = duration // 60 + 1

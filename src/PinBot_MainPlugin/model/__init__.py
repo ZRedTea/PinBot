@@ -1,2 +1,2 @@
 from Machine import *
-from Player import *
+from User import *
