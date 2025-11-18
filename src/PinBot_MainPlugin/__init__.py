@@ -243,18 +243,15 @@ async def autosave():
         if user.is_online():
             result = compute_cost_and_time(user, datetime.now())
 
-            #待完成
+
             logger.info(f"【拼Bot核心插件】自动化 | daily_clear > 已退勤 {user.getNickname()}")
         user.costClear()
 
-    serialized_users = {qq: serialize_player(player) for qq, player in users.items()}
     try:
         today = datetime.now().strftime("%Y-%m-%d")
         filename = f"autosave_{today}.sav"
         filepath = os.path.join(save_path, filename)
-        with open(filepath, "w", encoding="UTF-8") as f:
-            json.dump(serialized_users, f, ensure_ascii=False, indent=4)
-        logger.info(f"【拼Bot核心插件】自动化 | daily_clear > 自动存档数据已保存至于 {filename}")
+        User.save_users_to_file(users, filename)
         await bot.send_group_msg(group_id=GROUPID,message=f"【自动保存】数据已保存至 {filename}")
     except Exception as e:
         await bot.send_group_msg(group_id=GROUPID,message=f"【自动保存】保存时发生错误:{e}")

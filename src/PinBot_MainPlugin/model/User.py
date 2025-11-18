@@ -221,6 +221,16 @@ class UserModel:
             print(e)
             return False
 
+    def reset_daily_cost(self) -> bool:
+        """
+        重置今日花费
+        Returns:
+            bool: 是否成功
+        """
+        for each in self._daily_costs:
+            self._daily_costs[each] = 0
+        return True
+
     # === 序列化方法 ===
     def to_dict(self) -> dict:
         """将 User 对象转换为字典，便于 JSON 序列化"""
@@ -280,14 +290,14 @@ class UserModel:
             f.write(self.to_json())
 
     @classmethod
-    def load_from_file(cls, filename: str) -> 'User':
+    def load_from_file(cls, filename: str) -> 'UserModel':
         """从文件加载用户数据"""
         with open(filename, 'r', encoding='utf-8') as f:
             return cls.from_json(f.read())
 
     # === 用户管理的序列化方法 ===
     @staticmethod
-    def save_users_to_file(users_dict: Dict[int, 'User'], filename: str) -> None:
+    def save_users_to_file(users_dict: Dict[int, 'UserModel'], filename: str) -> None:
         """保存所有用户数据到文件"""
         users_data = {
             str(user_id): user.to_dict()
@@ -298,14 +308,14 @@ class UserModel:
             json.dump(users_data, f, ensure_ascii=False, indent=2)
 
     @staticmethod
-    def load_users_from_file(filename: str) -> Dict[int, 'User']:
+    def load_users_from_file(filename: str) -> Dict[int, 'UserModel']:
         """从文件加载所有用户数据"""
         try:
             with open(filename, 'r', encoding='utf-8') as f:
                 users_data = json.load(f)
 
             return {
-                user_id: User.from_dict(user_data)
+                user_id: UserModel.from_dict(user_data)
                 for user_id, user_data in users_data.items()
             }
         except FileNotFoundError:
