@@ -16,11 +16,20 @@ class UserCostType(Enum):
     NORMAL = 0
     OTHERS = 1
 
-class User:
+class UserPermission(Enum):
+    """权限组枚举"""
+    SUPER_ADMIN = 100
+    ADMIN = 80
+    AUTHORIZED_USER = 20
+    USER = 0
+    BANNED = -100
+
+class UserModel:
     """玩家类，用于实现对每个玩家的各种操作"""
     def __init__(self, nickname, userid):
         self._userid = userid                             #用户编号 => QQ号
         self._nickname = nickname                         #用户名
+        self._permission = UserPermission.USER            #用户权限
         self._total_play_time = timedelta()               #用户总游玩时长
         self._start_time : datetime = datetime.now()      #用户出勤开始时间
         self._balance = 0                                 #用户剩余金钱
@@ -57,6 +66,14 @@ class User:
     def is_banned(self) -> bool:
         return self._is_banned
 
+    @property
+    def permission_level(self) -> UserPermission:
+        return self._permission
+
+    @property
+    def start_time(self) -> datetime:
+        return self._start_time
+
     # === 信息相关方法 === #
     def change_nickname(self, nickname: str) -> bool:
         """
@@ -75,7 +92,10 @@ class User:
     def total_play_time(self) -> timedelta:
         return self._total_play_time
 
-    def get_total_play_time(self) -> list:
+    def get_total_play_time_seconds(self) -> int:
+        return int(self._total_play_time.total_seconds())
+
+    def get_total_play_time_list(self) -> list:
         """以列表形式返回总游玩时间"""
         total_seconds = int(self._total_play_time.total_seconds())
         days = total_seconds // 86400
@@ -265,12 +285,12 @@ class User:
         with open(filename, 'r', encoding='utf-8') as f:
             return cls.from_json(f.read())
 
-    # === 用户管理类的序列化方法 ===
+    # === 用户管理的序列化方法 ===
     @staticmethod
-    def save_users_to_file(users_dict: Dict[str, 'User'], filename: str) -> None:
+    def save_users_to_file(users_dict: Dict[int, 'User'], filename: str) -> None:
         """保存所有用户数据到文件"""
         users_data = {
-            user_id: user.to_dict()
+            str(user_id): user.to_dict()
             for user_id, user in users_dict.items()
         }
 
@@ -278,7 +298,7 @@ class User:
             json.dump(users_data, f, ensure_ascii=False, indent=2)
 
     @staticmethod
-    def load_users_from_file(filename: str) -> Dict[str, 'User']:
+    def load_users_from_file(filename: str) -> Dict[int, 'User']:
         """从文件加载所有用户数据"""
         try:
             with open(filename, 'r', encoding='utf-8') as f:
