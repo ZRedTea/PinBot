@@ -1,5 +1,6 @@
 from .config import Config
-from .model import User, PlayerStatus, serialize_player, deserialize_player
+from .model import (UserModel as User,
+                    UserStatus, UserCostType, UserPermission)
 from .model import Machine, serialize_machine, deserialize_machine, search_machine
 
 from nonebot import get_plugin_config, logger, require, get_bot
@@ -7,6 +8,8 @@ from nonebot.adapters.onebot.v11 import GroupIncreaseNoticeEvent, MessageSegment
 from nonebot.plugin import PluginMetadata, on_command, on_notice
 from nonebot.params import CommandArg
 from nonebot.rule import to_me
+
+from nonebot_plugin_alconna import on_alconna, Alconna, Args, Option, Subcommand, Match
 
 from typing import List, Dict, Any
 from apscheduler.triggers.cron import CronTrigger
@@ -37,14 +40,14 @@ base_path = os.path.dirname(__file__)
 save_path = os.path.join(base_path, "saves")
 data_path = os.path.join(base_path, "datas")
 cost_in_weekday = {
-    "playing": 4,
-    "waiting": 2,
+    UserStatus.PLAYING: 4,
+    UserStatus.WAITING: 2,
     "threshold": 20
 }
 cost_in_weekend = {
-    "playing" : 6,
-    "waiting" : 3,
-    "threshold" : 28
+    UserStatus.PLAYING: 6,
+    UserStatus.WAITING: 3,
+    "threshold": 28
 }
 PLACENAME = "拼好窝"                       #音游窝名称
 #ser = Serial("COM5", 9600, timeout=1)    #串口设置
@@ -81,12 +84,12 @@ def compute_real_cost(need_cost, had_cost, max_cost):
     else:
         return need_cost
 
-def compute_cost_and_time(player : User, current_time : datetime):
+def compute_cost_and_time(user : User, current_time : datetime):
     """
     统一的计时计费函数
 
     Args:
-        player: 玩家对象
+        user: 玩家对象
         current_time: 当前时间
 
     Returns:
@@ -96,13 +99,13 @@ def compute_cost_and_time(player : User, current_time : datetime):
     cost_param = cost_in_weekend if is_weekend() else cost_in_weekday
 
     # 获取用户开始时间和当前状态
-    start_time = player.getStartTime()
-    now_status = player.getStatus()
+    start_time = user.start_time
+    now_status = user.status
 
     # 计算游玩时长
     total_minutes = get_time(current_time, start_time)
 
-    if now_status == PlayerStatus.WAITING:
+    if now_status == UserStatus.WAITING:
         if total_minutes % 60 > 30:
             billing_hours = total_minutes // 60 + 1
         else:
@@ -115,7 +118,7 @@ def compute_cost_and_time(player : User, current_time : datetime):
 
     # 计算基础费用和实际费用
     need_cost = billing_hours * cost_param[now_status]
-    real_cost = compute_real_cost(need_cost, player.getCost(), cost_param["threshold"])
+    real_cost = compute_real_cost(need_cost, user.get_daily_cost(), cost_param["threshold"])
 
     return {
         "total_minutes": total_minutes,   # 实际游玩时长
@@ -130,16 +133,19 @@ def sort_users_by_playing_time() -> Dict[int, User]:
     按用户游戏时长降序排列用户
 
     Returns:
-        dict: 排名索引 -> 用户对象的字典
+        dict: [ 排名索引 , 用户对象 ]
     """
     sorted_users = sorted(
         users.values(),
-        key=lambda user: user.getMins(),
+        key=lambda user: user.get_total_play_time_seconds(),
         reverse=True
     )
 
     # 转换为排名字典
-    sorted_users = {rank+1: user for rank, user in enumerate(sorted_users)}
+    sorted_users = {
+        rank+1 : user
+        for rank, user in enumerate(sorted_users)
+    }
 
     return sorted_users
 
@@ -208,6 +214,14 @@ admin_unban      = on_command("解封", rule=to_me())
 admin_machine_on = on_command("开启机台", rule=to_me())
 admin_machine_off= on_command("关闭机台", rule=to_me())
 
+#权限组管理#
+set_permission = on_alconna(
+    Alconna(
+        "设置权限组",
+        Args["user_id", int]["permission", str]
+    )
+)
+
 ###功能性命令###
 auto_welcome     = on_notice()
 
@@ -229,7 +243,7 @@ async def autosave():
         if user.is_online():
             result = compute_cost_and_time(user, datetime.now())
 
-            user.allTimeAdd =
+            #待完成
             logger.info(f"【拼Bot核心插件】自动化 | daily_clear > 已退勤 {user.getNickname()}")
         user.costClear()
 
